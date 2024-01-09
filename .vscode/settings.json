@@ -1,0 +1,18 @@
+{
+	"prettier.useTabs": true,
+	"prettier.tabWidth": 4,
+	"editor.rulers": [120],
+	"editor.formatOnSave": true,
+	"editor.formatOnPaste": false,
+	"editor.formatOnType": false,
+	"files.eol": "\n",
+	"html.format.indentInnerHtml": true,
+	"files.exclude": {
+		"**/__pycache__": true,
+		"**/build": true,
+		"**/*.egg-info": true
+	},
+	"[python]": {
+		"editor.defaultFormatter": "ms-python.black-formatter"
+	}
+}

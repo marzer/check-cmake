@@ -1,0 +1,65 @@
+# This file is a part of marzer/check_cmake and is subject to the the terms of the MIT license.
+# Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
+# See https://github.com/marzer/check_cmake/blob/main/LICENSE.txt for the full license text.
+# SPDX-License-Identifier: MIT
+
+# windows:
+# python -m build && twine upload dist/* && rmdir /S /Q dist
+
+[build-system]
+requires = ['setuptools', 'wheel']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'check_cmake'
+requires-python = '>=3.8'
+description = 'A simple linter for CMake.'
+authors = [{ name = "Mark Gillard", email = "mark.gillard@outlook.com.au" }]
+license = { text = 'MIT' }
+keywords = ['c++', 'cmake']
+classifiers = [
+    'Development Status :: 3 - Alpha',
+    'License :: OSI Approved :: MIT License',
+    'Programming Language :: C',
+    'Programming Language :: C++',
+    'Topic :: Software Development :: Code Generators',
+    'Topic :: Software Development :: Compilers',
+    'Topic :: Software Development :: Build Tools',
+    'Topic :: Utilities',
+]
+dependencies = ['misk >= 0.8.1', 'colorama']
+dynamic = ['version', 'readme']
+
+[project.scripts]
+check_cmake = 'check_cmake:main'
+
+[project.urls]
+Source = 'https://github.com/marzer/check_cmake'
+Tracker = 'https://github.com/marzer/check_cmake/issues'
+Funding = 'https://github.com/sponsors/marzer'
+
+[tool.setuptools]
+zip-safe = true
+
+[tool.setuptools.dynamic]
+version = { file = 'src/check_cmake/version.txt' }
+readme = { file = [
+    'README.md',
+    'CHANGELOG.md',
+], content-type = 'text/markdown' }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ['*.txt', '*.hpp', '.clang-format']
+
+[tool.setuptools.exclude-package-data]
+"*" = ['meson.build', '.git*']
+
+[tool.black]
+line-length = 120
+target-version = ['py39']
+skip-string-normalization = true
+skip-magic-trailing-comma = true
