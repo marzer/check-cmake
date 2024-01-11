@@ -6,6 +6,7 @@
 
 import argparse
 import multiprocessing
+import re
 import shutil
 import signal
 import subprocess
@@ -192,16 +193,35 @@ def main_impl():
                         print_ex(rf'[--] {item_relative} skipped (.gitignore)')
                     continue
 
-            # read all text and get all lints
+            # read all text
             file_count += 1
-            text = utils.read_all_text_from_file(item)
+            text = utils.read_all_text_from_file(item).replace('\r\n', '\n').replace('\r', '\n')
+
+            # check for 'ignore this line' pragrams
+            ignored_lines = 0
+            lines = text.split('\n')
+            for i, line in zip(range(len(lines)), lines):
+                if re.fullmatch(
+                    r'^[^#]*?#\s*(?:(?:cmake[ _-]+(?:lint|check)|(?:lint|check)[ _-]+cmake)[:\s]+(?:disable|ignore)|no(?:lint|nocheck))\s*$',
+                    line,
+                    flags=re.I,
+                ):
+                    ignored_lines |= 1 << (i + 1)
+
+            # lint files
             text = utils.strip_cmake_comments(text)
             issues_in_file = []
             issues_in_file: list[lints.Issue]
             for lint in lints.LINTS:
                 issues = lint(item, text)
-                if issues is not None:
-                    issues_in_file += list(utils.coerce_collection(issues))
+                if issues is None:
+                    continue
+                issues = list(utils.coerce_collection(issues))
+                if not issues:
+                    continue
+                if ignored_lines:
+                    issues = [i for i in issues if (i.span.line_mask(text) & ignored_lines) == 0]
+                issues_in_file += issues
 
             # sort lints by start location and print
             issues_in_file.sort(key=lambda i: i.span.start)

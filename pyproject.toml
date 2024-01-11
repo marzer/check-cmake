@@ -32,6 +32,7 @@ dynamic = ['version', 'readme']
 
 [project.scripts]
 check_cmake = 'check_cmake:main'
+'check-cmake' = 'check_cmake:main'
 
 [project.urls]
 Source = 'https://github.com/marzer/check_cmake'

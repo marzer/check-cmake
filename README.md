@@ -1,21 +1,21 @@
-# check_cmake
+# check-cmake
 
 A simple linter for CMake.
 
 ## Installation
 
-`check_cmake` requires Python 3.8 or higher.
+`check-cmake` requires Python 3.8 or higher.
 
 ```
-pip3 install check_cmake
+pip3 install check-cmake
 ```
 
 ## Usage
 
-`check_cmake` is a command-line application
+`check-cmake` is a command-line application
 
 ```
-usage: check_cmake [-h] [-v] [--version] [--recurse | --no-recurse] [--limit LIMIT] [root]
+usage: check-cmake [-h] [-v] [--version] [--recurse | --no-recurse] [--limit LIMIT] [root]
 
 CMake checker for C and C++ projects.
 
@@ -30,7 +30,7 @@ options:
                         recurse into subfolders (default: True)
   --limit LIMIT         maximum errors to emit (default: 0)
 
-v0.1.0 - github.com/marzer/check_cmake
+v0.2.0 - github.com/marzer/check_cmake
 ```
 
 ## Exit codes
@@ -44,10 +44,10 @@ v0.1.0 - github.com/marzer/check_cmake
 ## Example output
 
 ```
-error: /blah/CMakeLists.txt:29:9: language standard level should be set on a per-target basis using target_compile_features()
+error: /my_lib/CMakeLists.txt:29:9: language standard level should be set on a per-target basis using target_compile_features()
   Context:
     29 | set_target_properties(
-    30 |     CppTools
+    30 |     my_lib
     31 |     PROPERTIES
     32 |         CXX_STANDARD 14
     33 |         CXX_STANDARD_REQUIRED ON
@@ -55,11 +55,49 @@ error: /blah/CMakeLists.txt:29:9: language standard level should be set on a per
     35 | )
   Replace with:
     target_compile_features(): https://cmake.org/cmake/help/latest/command/target_compile_features.html
-  Example:
-       | None
   More information:
     CMAKE_CXX_KNOWN_FEATURES: https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_CXX_KNOWN_FEATURES.html
     CMAKE_C_KNOWN_FEATURES: https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_C_KNOWN_FEATURES.html
 
 found 1 error in 1 file.
+```
+
+## Suppressing checks
+
+Checks can be suppressed using comment-based 'pragmas' at the end of the source line:
+
+```cmake
+set_target_properties(
+    my_lib
+    PROPERTIES
+        CXX_STANDARD 14 # nocheck
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+)
+```
+
+For compatibility with other tools, any the following will also work:
+
+```cmake
+# nolint
+
+# check-cmake ignore
+# lint-cmake ignore
+# cmake-check ignore
+# cmake-lint ignore
+
+# check-cmake disable
+# lint-cmake disable
+# cmake-check disable
+# cmake-lint disable
+
+# check-cmake: ignore
+# lint-cmake: ignore
+# cmake-check: ignore
+# cmake-lint: ignore
+
+# check-cmake: disable
+# lint-cmake: disable
+# cmake-check: disable
+# cmake-lint: disable
 ```

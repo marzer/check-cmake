@@ -6,12 +6,12 @@
 
 import re
 from io import StringIO
-from typing import Union, Collection, Tuple, List
+from pathlib import Path
+from typing import Collection, List, Tuple, Union
 
 import colorama
 
 from . import utils
-from .colour import *
 from .grid import Grid
 
 INDENT = '  '
@@ -49,14 +49,10 @@ class Links(object):
     # SHOUTY
     CMAKE_C_KNOWN_FEATURES = Link('https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_C_KNOWN_FEATURES.html')
     CMAKE_CXX_KNOWN_FEATURES = Link('https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_CXX_KNOWN_FEATURES.html')
-    INSTALL_RPATH = Link('https://cmake.org/cmake/help/latest/prop_tgt/INSTALL_RPATH.html')
-    POSITION_INDEPENDENT_CODE = Link('https://cmake.org/cmake/help/latest/prop_tgt/POSITION_INDEPENDENT_CODE.html')
     effective_modern_cmake = Link(
         'https://gist.github.com/mbinna/c61dbb39bca0e4fb7d1f73b0d66a4fd1', 'Effective Modern CMake'
     )
     find_package = Link('https://cmake.org/cmake/help/latest/command/find_package.html')
-    # PascalCase
-    FindThreads = Link('https://cmake.org/cmake/help/latest/module/FindThreads.html')
     # snake_case
     private_public_interface = Link(
         'https://leimao.github.io/blog/CMake-Public-Private-Interface/', 'Public vs. Private vs. Interface'
@@ -68,29 +64,6 @@ class Links(object):
     target_compile_options = Link('https://cmake.org/cmake/help/latest/command/target_compile_options.html')
     target_include_directories = Link('https://cmake.org/cmake/help/latest/command/target_include_directories.html')
     target_link_libraries = Link('https://cmake.org/cmake/help/latest/command/target_link_libraries.html')
-
-
-def make_example(str):
-    return Grid(str.strip(), line_number=-999999, indent=INDENT * 2)
-
-
-class Examples(object):
-    INSTALL_RPATH = make_example(
-        r'''
-get_target_property(my_current_rpaths my_lib INSTALL_RPATH)
-list(APPEND my_current_rpaths "/opt/lib")
-set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
-'''
-    )
-
-    FindThreads = make_example(
-        r'''
-find_package(Threads REQUIRED)
-target_link_libraries(my_lib PUBLIC Threads::Threads)
-'''
-    )
-
-    POSITION_INDEPENDENT_CODE = make_example('set_target_properties(my_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)')
 
 
 class Span(object):
@@ -113,10 +86,21 @@ class Span(object):
     def end(self) -> int:
         return self.start + self.length
 
+    def line_mask(self, text: str) -> int:
+        if not self.length or self.start >= len(text):
+            return 0
+        first = utils.calc_line_and_column(text, self.start)[0]
+        last = min(self.end, len(text)) - 1
+        last = utils.calc_line_and_column(text, last)[0] if last > first else first
+        mask = 0
+        for i in range(first, last + 1):
+            mask |= 1 << i
+        return mask
+
 
 class Issue(object):
     def __init__(
-        self, generator, source_path: str, source_text: str, description: str, span: Span, context: Span = None
+        self, generator, source_path: Path, source_text: str, description: str, span: Span, context: Span = None
     ):
         assert generator is not None
         self.generator = generator
@@ -209,7 +193,7 @@ class Lint(object):
         self.__example = example
         if self.__example is not None and not isinstance(self.__example, Grid):
             self.__example = str(self.__example).strip()
-            self.__example = make_example(self.__example) if self.__example else None
+            self.__example = Grid(self.__example, line_number=-999999, indent=INDENT * 2) if self.__example else None
 
         self.__more_info = None
         if more_info is not None:
@@ -219,7 +203,7 @@ class Lint(object):
                     self.__more_info[i] = Link(str(self.__more_info[i]))
             self.__more_info = tuple(self.__more_info) if self.__more_info else None
 
-    def __call__(self, source_path: str, source_text: str) -> List[Issue]:
+    def __call__(self, source_path: Path, source_text: str) -> Union[Issue, List[Issue]]:
         raise Exception('not implemented')
 
     @property
@@ -277,7 +261,7 @@ class RegexLint(Lint):
         if inner_group_must_match is not None and bool(inner_group_must_match):
             self._inner_group_must_match = re.compile(str(inner_group_must_match), flags=int(flags) | re.DOTALL)
 
-    def __call__(self, source_path: str, source_text: str) -> List[Issue]:
+    def __call__(self, source_path: Path, source_text: str) -> List[Issue]:
         results = []
         for pattern in self._patterns:
             for m in pattern.finditer(source_text):
@@ -313,84 +297,143 @@ class RegexLint(Lint):
         return results
 
 
+# "not closing bracket"
+NCB = r'[^)]*?'
+
+
+def emphasis(text):
+    return rf'{colorama.Fore.YELLOW}{text}{colorama.Style.RESET_ALL}'
+
+
+class SpecifyMinimumCMakeVersion(Lint):
+    def __init__(self):
+        super().__init__(
+            r'specify_minimum_cmake_version',
+            rf"scripts which contain a {emphasis('project()')} should specify a {emphasis('cmake_minimum_required()')} before it",
+            example='cmake_minimum_required(VERSION 3.16)\n\nproject(\n    # ...\n)',
+            more_info=Link(
+                r'https://cmake.org/cmake/help/latest/command/cmake_minimum_required.html', r'cmake_minimum_required()'
+            ),
+        )
+        self.__find_project = re.compile(rf'\b(project)\s*\(({NCB})\)', flags=re.DOTALL)
+        self.__find_min_required = re.compile(rf'\b(cmake_minimum_required)\s*\(({NCB})\)', flags=re.DOTALL)
+
+    def __call__(self, source_path: Path, source_text: str) -> Issue:
+        if source_path.name.lower() != 'cmakelists.txt':
+            return None
+        project = self.__find_project.search(source_text)
+        if not project:
+            return None
+        min_required = self.__find_min_required.search(source_text)
+        if not min_required:
+            return Issue(
+                generator=self,
+                source_path=source_path,
+                source_text=source_text,
+                description=self.description,
+                span=Span(project.start(1), end=project.end(1)),
+                context=Span(
+                    utils.find_first_char_on_line(source_text, project.start()),
+                    end=utils.find_last_char_on_line(source_text, project.end() - 1) + 1,
+                ),
+            )
+        elif min_required.start() > project.start():
+            return Issue(
+                generator=self,
+                source_path=source_path,
+                source_text=source_text,
+                description=self.description,
+                span=Span(min_required.start(1), end=min_required.end(1)),
+                context=Span(
+                    utils.find_first_char_on_line(source_text, project.start()),
+                    end=utils.find_last_char_on_line(source_text, max(project.end(), min_required.end()) - 1) + 1,
+                ),
+            )
+
+
 LINTS = (
+    SpecifyMinimumCMakeVersion(),
     RegexLint(
         r'specify_project_version',
-        rf'project() should specify a {bright("VERSION", colour="cyan")}',
-        r'\bproject\s*\(([^)]*?)\)',
+        rf"{emphasis('project()')} should specify a {emphasis('VERSION')}",
+        rf'\bproject\s*\(({NCB})\)',
         inner_group_must_match=r'\bVERSION\b',
         more_info=Links.project,
     ),
     RegexLint(
         r'specify_scope_on_target_functions',
         rf'\1() should specify at least one dependency scope '
-        rf'({bright("PRIVATE", colour="cyan")}, {bright("INTERFACE", colour="cyan")} or {bright("PUBLIC", colour="cyan")}) ',
-        r'\b(target_(?:link_(?:options|libraries)|compile_(?:options|features|definitions)|(?:include|link)_directories))\s*\(([^)]*?)\)',
+        rf'({emphasis("PRIVATE")}, {emphasis("INTERFACE")} or {emphasis("PUBLIC")}) ',
+        rf'\b(target_(?:link_(?:options|libraries)|compile_(?:options|features|definitions)|(?:include|link)_directories))\s*\(({NCB})\)',
         inner_group_index=2,
         inner_group_must_match=r'\b(?:PRIVATE|PUBLIC|INTERFACE)\b',
         more_info=(Links.private_public_interface, Links.effective_modern_cmake),
     ),
     RegexLint(
         r'use_set_target_properties_rpath',
-        rf'rpaths should be set using {bright("set_target_properties()", colour="cyan")} and {bright("INSTALL_RPATH", colour="cyan")}',
+        rf'rpaths should be set using {emphasis("set_target_properties()")} and {emphasis("INSTALL_RPATH")}',
         r'(-Wl,-rpath=)',
         replace_with=Links.set_target_properties,
-        more_info=Links.INSTALL_RPATH,
-        example=Examples.INSTALL_RPATH,
+        example=r'''
+get_target_property(my_current_rpaths my_lib INSTALL_RPATH)
+list(APPEND my_current_rpaths "/opt/lib")
+set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
+''',
+        more_info=r'https://cmake.org/cmake/help/latest/prop_tgt/INSTALL_RPATH.html',
     ),
     RegexLint(
         r'use_set_target_properties_pic',
-        rf'position-independent code should be set per-target using {bright("set_target_properties()", colour="cyan")} and {bright("POSITION_INDEPENDENT_CODE", colour="cyan")}',
-        r'\bset\s*\([^)]*?\b(CMAKE_POSITION_INDEPENDENT_CODE)\b[^)]*?\)',
+        rf'position-independent code should be set per-target using {emphasis("set_target_properties()")} and {emphasis("POSITION_INDEPENDENT_CODE")}',
+        rf'\bset\s*\({NCB}\b(CMAKE_POSITION_INDEPENDENT_CODE)\b{NCB}\)',
         replace_with=Links.set_target_properties,
-        example=Examples.POSITION_INDEPENDENT_CODE,
-        more_info=Links.POSITION_INDEPENDENT_CODE,
+        example=r'set_target_properties(my_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)',
+        more_info=r'https://cmake.org/cmake/help/latest/prop_tgt/POSITION_INDEPENDENT_CODE.html',
     ),
     RegexLint(
         r'use_target_compile_definitions',
-        rf'compiler defines should be set on a per-target basis using {bright("target_compile_definitions()", colour="cyan")}',
-        r'\b(add_(?:compile_)?definitions)\s*\([^)]*?\)',
+        rf'compiler defines should be set on a per-target basis using {emphasis("target_compile_definitions()")}',
+        rf'\b(add_(?:compile_)?definitions)\s*\({NCB}\)',
         replace_with=Links.target_compile_definitions,
         more_info=Links.effective_modern_cmake,
     ),
     RegexLint(
         r'use_target_compile_features_language_standard',
-        rf'language standard level should be set on a per-target basis using {bright("target_compile_features()", colour="cyan")}',
+        rf'language standard level should be set on a per-target basis using {emphasis("target_compile_features()")}',
         (
-            r'\bset_target_properties\s*\([^)]*?\b(C(?:XX)?_STANDARD)\b[^)]*?\)',
-            r'\bset\s*\(\s*\b(CMAKE_C(?:XX)?_STANDARD)\b[^)]*?\)',
+            rf'\bset_target_properties\s*\({NCB}\b(C(?:XX)?_STANDARD)\b{NCB}\)',
+            rf'\bset\s*\(\s*\b(CMAKE_C(?:XX)?_STANDARD)\b{NCB}\)',
         ),
         replace_with=Links.target_compile_features,
         more_info=(Links.CMAKE_CXX_KNOWN_FEATURES, Links.CMAKE_C_KNOWN_FEATURES),
     ),
     RegexLint(
         r'use_target_compile_options',
-        rf'compiler options should be set on a per-target basis using {bright("target_compile_options()", colour="cyan")}',
-        (r'\b(add_compile_options)\s*\([^)]*?\)', r'\bset\s*\(\s*(CMAKE_C(?:XX)?_FLAGS)\b[^)]*?\)'),
+        rf'compiler options should be set on a per-target basis using {emphasis("target_compile_options()")}',
+        (rf'\b(add_compile_options)\s*\({NCB}\)', rf'\bset\s*\(\s*(CMAKE_C(?:XX)?_FLAGS)\b{NCB}\)'),
         replace_with=Links.target_compile_options,
         more_info=Links.effective_modern_cmake,
     ),
     RegexLint(
         r'use_target_include_directories',
-        rf'include paths should be set on a per-target basis using {bright("target_include_directories()", colour="cyan")}',
-        r'\b(include_directories)\s*\([^)]*?\)',
+        rf'include paths should be set on a per-target basis using {emphasis("target_include_directories()")}',
+        rf'\b(include_directories)\s*\({NCB}\)',
         replace_with=Links.target_include_directories,
         more_info=Links.effective_modern_cmake,
     ),
     RegexLint(
         r'use_target_link_libraries',
-        rf'linker paths should be inherited from library targets using {bright("target_link_libraries()", colour="cyan")}',
-        r'\b(link_directories)\s*\([^)]*?\)',
+        rf'linker paths should be inherited from library targets using {emphasis("target_link_libraries()")}',
+        rf'\b(link_directories)\s*\({NCB}\)',
         replace_with=Links.target_link_libraries,
         more_info=Links.effective_modern_cmake,
     ),
     RegexLint(
         r'use_threads_package',
-        rf'support for threading should be provided by linking with {bright("Threads::Threads", colour="cyan")} from the {bright("Threads", colour="cyan")} package',
-        r'\btarget_link_libraries\s*\([^)]*?\b(pthread)\b[^)]*?\)',
+        rf'support for threading should be provided by linking with {emphasis("Threads::Threads")} from the {emphasis("Threads")} package',
+        rf'\btarget_link_libraries\s*\({NCB}\b(pthread)\b{NCB}\)',
         replace_with='Threads::Threads',
-        example=Examples.FindThreads,
-        more_info=(Links.FindThreads, Links.find_package),
+        example=r'find_package(Threads REQUIRED)\ntarget_link_libraries(my_lib PUBLIC Threads::Threads)',
+        more_info=(r'https://cmake.org/cmake/help/latest/module/FindThreads.html', Links.find_package),
     ),
 )
 
