@@ -202,7 +202,7 @@ def main_impl():
             lines = text.split('\n')
             for i, line in zip(range(len(lines)), lines):
                 if re.fullmatch(
-                    r'^[^#]*?#\s*(?:(?:cmake[ _-]+(?:lint|check)|(?:lint|check)[ _-]+cmake)[:\s]+(?:disable|ignore)|no(?:lint|nocheck))\s*$',
+                    r'^[^#]*?#\s*(?:(?:cmake[ _-]+(?:lint|check)|(?:lint|check)[ _-]+cmake)[:\s]+(?:disable|ignore)|no(?:lint|check))\s*$',
                     line,
                     flags=re.I,
                 ):
