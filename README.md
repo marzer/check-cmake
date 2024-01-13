@@ -30,7 +30,7 @@ options:
                         recurse into subfolders (default: True)
   --limit LIMIT         maximum errors to emit (default: 0)
 
-v0.2.0 - github.com/marzer/check_cmake
+v0.3.0 - github.com/marzer/check_cmake
 ```
 
 ## Exit codes

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.0
+
+-   Fixed `#nocheck`
+
 ## v0.2.0
 
 -   Added pragmas for ignoring lints on a line
