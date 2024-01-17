@@ -1,13 +1,19 @@
 # Changelog
 
+## v0.4.0
+
+-   Fixed line numbers sometimes being wrong in context snippets
+-   Added check for incorrectly-placed `SYSTEM` in `target_include_directories()`
+-   Added check for extraneous space in `ExternalProject_Add()` `CMAKE_ARGS`
+
 ## v0.3.0
 
 -   Fixed `#nocheck`
 
 ## v0.2.0
 
--   Added pragmas for ignoring lints on a line
--   Added lint for `cmake_minimum_required()` when `project()` is present
+-   Added pragmas for ignoring checks on a line
+-   Added check for `cmake_minimum_required()` when `project()` is present
 -   Fixed minor formatting issues
 
 ## v0.1.0

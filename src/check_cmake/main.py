@@ -16,7 +16,7 @@ from pathlib import Path
 
 import colorama
 
-from . import lints, paths, utils
+from . import checks, paths, utils
 from .colour import *
 from .version import *
 
@@ -102,7 +102,7 @@ def main_impl():
         prev_print_was_issue = False
         print(*args)
 
-    def lint_directory(dir: Path):
+    def check_directory(dir: Path):
         global STOP
         nonlocal args
         nonlocal root_is_git_repo
@@ -166,7 +166,7 @@ def main_impl():
                     if args.verbose:
                         print_ex(rf'[--] {item_relative} skipped (insufficient permissions)')
                     continue
-                lint_directory(item)
+                check_directory(item)
                 continue
 
             # non-files
@@ -208,12 +208,12 @@ def main_impl():
                 ):
                     ignored_lines |= 1 << (i + 1)
 
-            # lint files
+            # check files
             text = utils.strip_cmake_comments(text)
             issues_in_file = []
-            issues_in_file: list[lints.Issue]
-            for lint in lints.LINTS:
-                issues = lint(item, text)
+            issues_in_file: list[checks.Issue]
+            for check in checks.CHECKS:
+                issues = check(item, text)
                 if issues is None:
                     continue
                 issues = list(utils.coerce_collection(issues))
@@ -223,7 +223,7 @@ def main_impl():
                     issues = [i for i in issues if (i.span.line_mask(text) & ignored_lines) == 0]
                 issues_in_file += issues
 
-            # sort lints by start location and print
+            # sort issues by start location and print
             issues_in_file.sort(key=lambda i: i.span.start)
             for issue in issues_in_file:
                 if not prev_print_was_issue:
@@ -237,7 +237,7 @@ def main_impl():
             if not issues_in_file and args.verbose:
                 print_ex(rf'[OK] {item_relative}')
 
-    lint_directory(args.root)
+    check_directory(args.root)
 
     print_ex(
         rf'found {issue_count} error{"" if issue_count == 1 else "s"} in {file_count} file{"" if file_count == 1 else "s"}.'

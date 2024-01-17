@@ -49,11 +49,13 @@ class Links(object):
     # SHOUTY
     CMAKE_C_KNOWN_FEATURES = Link('https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_C_KNOWN_FEATURES.html')
     CMAKE_CXX_KNOWN_FEATURES = Link('https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_CXX_KNOWN_FEATURES.html')
+    # PascalCase
+    ExternalProject = Link('https://cmake.org/cmake/help/latest/module/ExternalProject.html')
+    # snake_case
     effective_modern_cmake = Link(
         'https://gist.github.com/mbinna/c61dbb39bca0e4fb7d1f73b0d66a4fd1', 'Effective Modern CMake'
     )
     find_package = Link('https://cmake.org/cmake/help/latest/command/find_package.html')
-    # snake_case
     private_public_interface = Link(
         'https://leimao.github.io/blog/CMake-Public-Private-Interface/', 'Public vs. Private vs. Interface'
     )
@@ -100,7 +102,7 @@ class Span(object):
 
 class Issue(object):
     def __init__(
-        self, generator, source_path: Path, source_text: str, description: str, span: Span, context: Span = None
+        self, generator, source_path: Path, source_text: str, span: Span, description: str = None, context: Span = None
     ):
         assert generator is not None
         self.generator = generator
@@ -111,7 +113,6 @@ class Issue(object):
         assert source_text
         self.source_text = source_text
 
-        assert description
         self.description = description
 
         assert span is not None
@@ -123,7 +124,7 @@ class Issue(object):
         self.line_and_column = utils.calc_line_and_column(source_text, span.start)
 
         self.grid = Grid(source_text[self.context.start : self.context.end], indent=INDENT * 2)
-        self.grid.line_number = self.line_and_column[0]
+        self.grid.line_number = utils.calc_line_and_column(source_text, context.start)[0]
         grid_highlight_range = self.grid.find_range(source_text[self.span.start : self.span.end])
         if grid_highlight_range is not None:
             self.grid.style_range(
@@ -150,7 +151,10 @@ class Issue(object):
             else:
                 buf.write(f'<file>')
             buf.write(rf':{self.line_and_column[0]}:{self.line_and_column[1]}: {colorama.Style.RESET_ALL}')
-            buf.write(self.description)
+            if self.description is not None:
+                buf.write(self.description)
+            else:
+                buf.write(self.generator.description)
             # buf.write(rf' [{self.generator.name}]')
             if self.grid:
                 buf.write(f'\n{INDENT}{colorama.Style.BRIGHT}Context:{colorama.Style.RESET_ALL}\n{self.grid}')
@@ -169,7 +173,7 @@ class Issue(object):
             return buf.getvalue().lstrip()
 
 
-class Lint(object):
+class Check(object):
     def __init__(
         self,
         name: str,
@@ -227,7 +231,7 @@ class Lint(object):
         return self.__more_info
 
 
-class RegexLint(Lint):
+class RegexCheck(Check):
     def __init__(
         self,
         name: str,
@@ -300,12 +304,15 @@ class RegexLint(Lint):
 # "not closing bracket"
 NCB = r'[^)]*?'
 
+# "not string"
+NSTR = r'[^"]*?'
+
 
 def emphasis(text):
     return rf'{colorama.Fore.YELLOW}{text}{colorama.Style.RESET_ALL}'
 
 
-class SpecifyMinimumCMakeVersion(Lint):
+class SpecifyMinimumCMakeVersion(Check):
     def __init__(self):
         super().__init__(
             r'specify_minimum_cmake_version',
@@ -330,7 +337,6 @@ class SpecifyMinimumCMakeVersion(Lint):
                 generator=self,
                 source_path=source_path,
                 source_text=source_text,
-                description=self.description,
                 span=Span(project.start(1), end=project.end(1)),
                 context=Span(
                     utils.find_first_char_on_line(source_text, project.start()),
@@ -342,7 +348,6 @@ class SpecifyMinimumCMakeVersion(Lint):
                 generator=self,
                 source_path=source_path,
                 source_text=source_text,
-                description=self.description,
                 span=Span(min_required.start(1), end=min_required.end(1)),
                 context=Span(
                     utils.find_first_char_on_line(source_text, project.start()),
@@ -351,16 +356,48 @@ class SpecifyMinimumCMakeVersion(Lint):
             )
 
 
-LINTS = (
+class TargetIncludeDirectoriesSYSTEM(Check):
+    def __init__(self):
+        super().__init__(
+            r'target_include_directories_system',
+            rf"the {emphasis('SYSTEM')} specifier must be the first non-target argument passed to {emphasis('target_include_directories()')}",
+            example='target_include_directories(my_lib\n\tSYSTEM\n\tINTERFACE\n\t\t$<INSTALL_INTERFACE:include>\n)',
+            more_info=Links.target_include_directories,
+        )
+        self.__tid_with_system = re.compile(
+            rf'\btarget_include_directories\s*\(({NCB}\b(SYSTEM)\b{NCB})\)', flags=re.DOTALL
+        )
+        self.__good_args = re.compile(rf'^\s*(?:[a-zA-Z0-9_-]+|"{NSTR}")\s+SYSTEM\s+.*?$', flags=re.DOTALL)
+
+    def __call__(self, source_path: Path, source_text: str) -> Issue:
+        tid = self.__tid_with_system.search(source_text)
+        if not tid:
+            return None
+        if self.__good_args.fullmatch(tid[1]):
+            return None
+        return Issue(
+            generator=self,
+            source_path=source_path,
+            source_text=source_text,
+            span=Span(tid.start(2), end=tid.end(2)),
+            context=Span(
+                utils.find_first_char_on_line(source_text, tid.start()),
+                end=utils.find_last_char_on_line(source_text, tid.end() - 1) + 1,
+            ),
+        )
+
+
+CHECKS = (
     SpecifyMinimumCMakeVersion(),
-    RegexLint(
+    TargetIncludeDirectoriesSYSTEM(),
+    RegexCheck(
         r'specify_project_version',
         rf"{emphasis('project()')} should specify a {emphasis('VERSION')}",
         rf'\bproject\s*\(({NCB})\)',
         inner_group_must_match=r'\bVERSION\b',
         more_info=Links.project,
     ),
-    RegexLint(
+    RegexCheck(
         r'specify_scope_on_target_functions',
         rf'\1() should specify at least one dependency scope '
         rf'({emphasis("PRIVATE")}, {emphasis("INTERFACE")} or {emphasis("PUBLIC")}) ',
@@ -369,7 +406,7 @@ LINTS = (
         inner_group_must_match=r'\b(?:PRIVATE|PUBLIC|INTERFACE)\b',
         more_info=(Links.private_public_interface, Links.effective_modern_cmake),
     ),
-    RegexLint(
+    RegexCheck(
         r'use_set_target_properties_rpath',
         rf'rpaths should be set using {emphasis("set_target_properties()")} and {emphasis("INSTALL_RPATH")}',
         r'(-Wl,-rpath=)',
@@ -381,7 +418,7 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
 ''',
         more_info=r'https://cmake.org/cmake/help/latest/prop_tgt/INSTALL_RPATH.html',
     ),
-    RegexLint(
+    RegexCheck(
         r'use_set_target_properties_pic',
         rf'position-independent code should be set per-target using {emphasis("set_target_properties()")} and {emphasis("POSITION_INDEPENDENT_CODE")}',
         rf'\bset\s*\({NCB}\b(CMAKE_POSITION_INDEPENDENT_CODE)\b{NCB}\)',
@@ -389,14 +426,14 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
         example=r'set_target_properties(my_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)',
         more_info=r'https://cmake.org/cmake/help/latest/prop_tgt/POSITION_INDEPENDENT_CODE.html',
     ),
-    RegexLint(
+    RegexCheck(
         r'use_target_compile_definitions',
         rf'compiler defines should be set on a per-target basis using {emphasis("target_compile_definitions()")}',
         rf'\b(add_(?:compile_)?definitions)\s*\({NCB}\)',
         replace_with=Links.target_compile_definitions,
         more_info=Links.effective_modern_cmake,
     ),
-    RegexLint(
+    RegexCheck(
         r'use_target_compile_features_language_standard',
         rf'language standard level should be set on a per-target basis using {emphasis("target_compile_features()")}',
         (
@@ -406,28 +443,28 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
         replace_with=Links.target_compile_features,
         more_info=(Links.CMAKE_CXX_KNOWN_FEATURES, Links.CMAKE_C_KNOWN_FEATURES),
     ),
-    RegexLint(
+    RegexCheck(
         r'use_target_compile_options',
         rf'compiler options should be set on a per-target basis using {emphasis("target_compile_options()")}',
         (rf'\b(add_compile_options)\s*\({NCB}\)', rf'\bset\s*\(\s*(CMAKE_C(?:XX)?_FLAGS)\b{NCB}\)'),
         replace_with=Links.target_compile_options,
         more_info=Links.effective_modern_cmake,
     ),
-    RegexLint(
+    RegexCheck(
         r'use_target_include_directories',
         rf'include paths should be set on a per-target basis using {emphasis("target_include_directories()")}',
         rf'\b(include_directories)\s*\({NCB}\)',
         replace_with=Links.target_include_directories,
         more_info=Links.effective_modern_cmake,
     ),
-    RegexLint(
+    RegexCheck(
         r'use_target_link_libraries',
         rf'linker paths should be inherited from library targets using {emphasis("target_link_libraries()")}',
         rf'\b(link_directories)\s*\({NCB}\)',
         replace_with=Links.target_link_libraries,
         more_info=Links.effective_modern_cmake,
     ),
-    RegexLint(
+    RegexCheck(
         r'use_threads_package',
         rf'support for threading should be provided by linking with {emphasis("Threads::Threads")} from the {emphasis("Threads")} package',
         rf'\btarget_link_libraries\s*\({NCB}\b(pthread)\b{NCB}\)',
@@ -435,6 +472,14 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
         example=r'find_package(Threads REQUIRED)\ntarget_link_libraries(my_lib PUBLIC Threads::Threads)',
         more_info=(r'https://cmake.org/cmake/help/latest/module/FindThreads.html', Links.find_package),
     ),
+    RegexCheck(
+        r'external_project_add_cmake_args',
+        rf"{emphasis('ExternalProject_Add()')} variable definitions specified via {emphasis('CMAKE_ARGS')} must not"
+        + rf" have a space after {emphasis('-D')} (use quotes around the entire argument if the RHS might have whitespace)",
+        rf'\bExternalProject_Add\s*\({NCB}\s+CMAKE_ARGS\s+{NCB}(-D\s+[a-zA-Z0-9_]+=){NCB}\)',
+        example='\nExternalProject_Add(\n\tsome_lib\n\tSOURCE_DIR\n\t\t"some_lib/source"\n\tCMAKE_ARGS\n\t\t"-DCMAKE_CXX_COMPILER=${{CMAKE_CXX_COMPILER}}"\n)',
+        more_info=Links.ExternalProject,
+    ),
 )
 
-__all__ = ['Issue', 'LINTS']
+__all__ = ['Issue', 'CHECKS']
