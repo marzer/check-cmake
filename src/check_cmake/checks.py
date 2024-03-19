@@ -16,6 +16,8 @@ from .grid import Grid
 
 INDENT = '  '
 
+BS = '\\'
+
 
 class Link(object):
     def __init__(self, uri, description=None):
@@ -66,6 +68,7 @@ class Links(object):
     target_compile_options = Link('https://cmake.org/cmake/help/latest/command/target_compile_options.html')
     target_include_directories = Link('https://cmake.org/cmake/help/latest/command/target_include_directories.html')
     target_link_libraries = Link('https://cmake.org/cmake/help/latest/command/target_link_libraries.html')
+    add_library = Link('https://cmake.org/cmake/help/latest/command/add_library.html')
 
 
 class Span(object):
@@ -399,7 +402,7 @@ CHECKS = (
     ),
     RegexCheck(
         r'specify_scope_on_target_functions',
-        rf'\1() should specify at least one dependency scope '
+        rf'{emphasis(BS+r"1()")} should specify at least one dependency scope '
         rf'({emphasis("PRIVATE")}, {emphasis("INTERFACE")} or {emphasis("PUBLIC")}) ',
         rf'\b(target_(?:link_(?:options|libraries)|compile_(?:options|features|definitions)|(?:include|link)_directories))\s*\(({NCB})\)',
         inner_group_index=2,
@@ -479,6 +482,15 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
         rf'\bExternalProject_Add\s*\({NCB}\s+CMAKE_ARGS\s+{NCB}(-D\s+[a-zA-Z0-9_]+=){NCB}\)',
         example='\nExternalProject_Add(\n\tsome_lib\n\tSOURCE_DIR\n\t\t"some_lib/source"\n\tCMAKE_ARGS\n\t\t"-DCMAKE_CXX_COMPILER=${{CMAKE_CXX_COMPILER}}"\n)',
         more_info=Links.ExternalProject,
+    ),
+    RegexCheck(
+        r'specify_library_type',    
+        rf"{emphasis('add_library()')} should specify the library type "
+        rf'(one of {emphasis("STATIC")}, {emphasis("SHARED")}, {emphasis("MODULE")}, '
+            + rf'{emphasis("OBJECT")}, {emphasis("INTERFACE")}, {emphasis("IMPORTED")}, {emphasis("ALIAS")}) ',
+        rf'\badd_library\s*\(({NCB})\)',
+        inner_group_must_match=r'\b(?:STATIC|SHARED|MODULE|OBJECT|INTERFACE|IMPORTED|ALIAS)\b',
+        more_info=(Links.add_library, Links.effective_modern_cmake),
     ),
 )
 

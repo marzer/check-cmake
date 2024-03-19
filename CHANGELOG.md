@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+-   Added check for `add_library()` with implicit type (`STATIC`, `SHARED`, et cetera)
+
 ## v0.4.0
 
 -   Fixed line numbers sometimes being wrong in context snippets
