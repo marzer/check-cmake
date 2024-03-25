@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0
 
 -   Added check for `add_library()` with implicit type (`STATIC`, `SHARED`, et cetera)
 
