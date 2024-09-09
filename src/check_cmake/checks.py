@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# This file is a part of marzer/check_cmake and is subject to the the terms of the MIT license.
+# This file is a part of marzer/check-cmake and is subject to the the terms of the MIT license.
 # Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
-# See https://github.com/marzer/check_cmake/blob/main/LICENSE.txt for the full license text.
+# See https://github.com/marzer/check-cmake/blob/main/LICENSE.txt for the full license text.
 # SPDX-License-Identifier: MIT
 
 import re
@@ -484,10 +484,10 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
         more_info=Links.ExternalProject,
     ),
     RegexCheck(
-        r'specify_library_type',    
+        r'specify_library_type',
         rf"{emphasis('add_library()')} should specify the library type "
         rf'(one of {emphasis("STATIC")}, {emphasis("SHARED")}, {emphasis("MODULE")}, '
-            + rf'{emphasis("OBJECT")}, {emphasis("INTERFACE")}, {emphasis("IMPORTED")}, {emphasis("ALIAS")}) ',
+        + rf'{emphasis("OBJECT")}, {emphasis("INTERFACE")}, {emphasis("IMPORTED")}, {emphasis("ALIAS")}) ',
         rf'\badd_library\s*\(({NCB})\)',
         inner_group_must_match=r'\b(?:STATIC|SHARED|MODULE|OBJECT|INTERFACE|IMPORTED|ALIAS)\b',
         more_info=(Links.add_library, Links.effective_modern_cmake),

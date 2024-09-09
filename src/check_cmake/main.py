@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# This file is a part of marzer/check_cmake and is subject to the the terms of the MIT license.
+# This file is a part of marzer/check-cmake and is subject to the the terms of the MIT license.
 # Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
-# See https://github.com/marzer/check_cmake/blob/main/LICENSE.txt for the full license text.
+# See https://github.com/marzer/check-cmake/blob/main/LICENSE.txt for the full license text.
 # SPDX-License-Identifier: MIT
 
 import argparse
@@ -52,7 +52,7 @@ def make_boolean_optional_arg(args: argparse.ArgumentParser, name: str, default,
 def main_impl():
     args = argparse.ArgumentParser(
         description=r'CMake checker for C and C++ projects.',
-        epilog=rf'v{VERSION_STRING} - github.com/marzer/check_cmake',
+        epilog=rf'v{VERSION_STRING} - github.com/marzer/check-cmake',
     )
     args.add_argument(r'-v', r'--verbose', action=r'store_true', help=r"enable verbose output")
     args.add_argument(
@@ -72,7 +72,7 @@ def main_impl():
         print(paths.PACKAGE)
         return
 
-    print(rf'{bright("check_cmake", colour="cyan")} v{VERSION_STRING} - github.com/marzer/check_cmake')
+    print(rf'{bright("check_cmake", colour="cyan")} v{VERSION_STRING} - github.com/marzer/check-cmake')
 
     if not args.root.is_dir():
         return rf"root '{bright(args.root)}' did not exist or was not a directory"
@@ -271,7 +271,7 @@ def main():
             buf.write(
                 f'\n{dim("*************", "red")}\n\n'
                 'You appear to have triggered an internal bug!'
-                f'\n{style("Please file an issue at github.com/marzer/check_cmake/issues")}'
+                f'\n{style("Please file an issue at github.com/marzer/check-cmake/issues")}'
                 '\nMany thanks!'
                 f'\n\n{dim("*************", "red")}\n\n'
             )
