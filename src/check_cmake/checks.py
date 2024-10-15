@@ -370,7 +370,9 @@ class TargetIncludeDirectoriesSYSTEM(Check):
         self.__tid_with_system = re.compile(
             rf'\btarget_include_directories\s*\(({NCB}\b(SYSTEM)\b{NCB})\)', flags=re.DOTALL
         )
-        self.__good_args = re.compile(rf'^\s*(?:[a-zA-Z0-9_-]+|"{NSTR}")\s+SYSTEM\s+.*?$', flags=re.DOTALL)
+        self.__good_args = re.compile(
+            rf'^\s*(?:[a-zA-Z0-9_-]+|\$\{{[a-zA-Z0-9_-]+\}}|"{NSTR}")\s+SYSTEM\s+.*?$', flags=re.DOTALL
+        )
 
     def __call__(self, source_path: Path, source_text: str) -> Issue:
         tid = self.__tid_with_system.search(source_text)
