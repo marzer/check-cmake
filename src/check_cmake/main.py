@@ -245,27 +245,27 @@ def main_impl():
     return issue_count
 
 
-def main():
+def main_internal() -> int:
     signal.signal(signal.SIGINT, sigint_handler)
     colorama.init()
     result = None
     try:
         result = main_impl()
         if result is None:
-            sys.exit(0)
+            return 0
         elif isinstance(result, int):
-            sys.exit(result)
+            return result
         elif isinstance(result, str):  # error message
             error(result)
-            sys.exit(-1)
+            return -1
         else:
             error('unexpected result type')
-            sys.exit(-1)
+            return -1
     except SystemExit as exit:
         raise exit from None
     except argparse.ArgumentError as err:
         error(err)
-        sys.exit(-1)
+        return -1
     except BaseException as err:
         with StringIO() as buf:
             buf.write(
@@ -278,8 +278,11 @@ def main():
             utils.print_exception(err, include_type=True, include_traceback=True, skip_frames=1, logger=buf)
             buf.write(f'{dim("*************", "red")}\n')
             print(buf.getvalue(), file=sys.stderr)
-        sys.exit(-1)
+        return -1
 
+def main():
+    result = main_internal()
+    sys.exit(result)
 
 if __name__ == '__main__':
     main()
