@@ -358,7 +358,8 @@ class SpecifyMinimumCMakeVersion(Check):
                 ),
             )
 
-
+# minor issue here that this detects only the first target_include_directories, it may find more on subsequent runs
+# after fixing the first one
 class TargetIncludeDirectoriesSYSTEM(Check):
     def __init__(self):
         super().__init__(
