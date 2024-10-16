@@ -1,14 +1,11 @@
+# to run this tester script:
+# virtualenv test_env
+# source test_env/bin/activate
+# pip install misk>=0.8.1 colorama
+
 import argparse
 import os
 import sys
-
-# Quick instruction to run this tester script:
-# virtualenv test_env
-# source test_env/bin/activate
-#
-# dependencies through check-cmake: ['misk >= 0.8.1', 'colorama']
-# In order to use it: pip install misk>=0.8.1 colorama
-# The code generator tool and library versions need to match.
 from src.check_cmake.main import main_internal
 
 def run_test(full_test_dir, expect_error):
@@ -16,14 +13,15 @@ def run_test(full_test_dir, expect_error):
 
     result = main_internal()
     if result != 0:
-        print(f"Found an expected error in {full_test_dir}: {result}")
+        print(f"Found an expected error(s) in {full_test_dir}: {result}")
 
+    # could be wisened up to check error counts
     if expect_error == True and result == 0:
-        print(f"Expected an error in {full_test_dir}, but got none.")
+        print(f"Expected an error(s) in {full_test_dir}, but got none.")
         sys.exit(-1)
 
     if expect_error == False and result != 0:
-        print(f"Expected no error in {full_test_dir}, but got one.")
+        print(f"Expected no error(s) in {full_test_dir}, but got some.")
         sys.exit(-1)
 
 def run_suite(testdir_root, expect_error):
