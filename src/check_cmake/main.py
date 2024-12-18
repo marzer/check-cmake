@@ -35,18 +35,20 @@ def sigint_handler(signal, frame):
 
 
 def make_boolean_optional_arg(args: argparse.ArgumentParser, name: str, default, help='', **kwargs):
-    if sys.version_info.minor >= 9:
+    name = name.strip().lstrip('-')
+    if sys.version_info >= (3, 9):
         args.add_argument(rf'--{name}', default=default, help=help, action=argparse.BooleanOptionalAction, **kwargs)
     else:
-        args.add_argument(rf'--{name}', action=r'store_true', help=help, **kwargs)
+        dest = name.replace(r'-', r'_')
+        args.add_argument(rf'--{name}', action=r'store_true', help=help, dest=dest, default=default, **kwargs)
         args.add_argument(
             rf'--no-{name}',
             action=r'store_false',
             help=(help if help == argparse.SUPPRESS else None),
-            dest=name,
+            dest=dest,
+            default=default,
             **kwargs,
         )
-        args.set_defaults(**{name: default})
 
 
 def main_impl():
