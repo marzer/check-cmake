@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.2
+
+- Fixed internal `Path.relative_to()` error when used inside a virtual environment
+
 ## v0.5.1
 
 - Fixed false positive for incorrect use of `SYSTEM` in `target_include_directories()` in some cases

@@ -115,7 +115,11 @@ def main_impl():
             if STOP.is_set():
                 break
             item = item.resolve()
-            item_relative = item.relative_to(root_absolute)
+
+            try:
+                item_relative = item.relative_to(root_absolute)  # breaks venv usage
+            except:
+                item_relative = item
 
             # check permissions
             try:
@@ -282,9 +286,11 @@ def main_internal() -> int:
             print(buf.getvalue(), file=sys.stderr)
         return -1
 
+
 def main():
     result = main_internal()
     sys.exit(result)
+
 
 if __name__ == '__main__':
     main()
