@@ -248,7 +248,7 @@ def main_impl():
     print_ex(
         rf'found {issue_count} error{"" if issue_count == 1 else "s"} in {file_count} file{"" if file_count == 1 else "s"}.'
     )
-    return issue_count
+    return 1 if issue_count else 0
 
 
 def main_internal() -> int:

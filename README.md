@@ -35,11 +35,11 @@ v0.3.0 - github.com/marzer/check-cmake
 
 ## Exit codes
 
-| Value                                | Meaning                        |
-| :----------------------------------- | :----------------------------- |
-| 0                                    | No issues were found           |
-| `N`, where `N` is a positive integer | `N` issues were found in total |
-| -1                                   | A fatal error occurred         |
+| Value | Meaning                |
+| :---- | :--------------------- |
+| 0     | No issues were found   |
+| 1     | Issues were found      |
+| -1    | A fatal error occurred |
 
 ## Example output
 

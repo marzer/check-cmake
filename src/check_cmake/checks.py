@@ -32,9 +32,9 @@ class Link(object):
                 return
             self.description = self.uri[last_slash + 1 : last_dot]
             if (
-                re.fullmatch('[a-z_]+', self.description)
-                and re.match('^(set_|target_|find_|project)', self.description)
-                and not re.match('\(\s*\)\s*$', self.description)
+                re.fullmatch(r'[a-z_]+', self.description)
+                and re.match(r'^(set_|target_|find_|project)', self.description)
+                and not re.match(r'\(\s*\)\s*$', self.description)
             ):
                 self.description += '()'
 
@@ -92,10 +92,10 @@ class Span(object):
         return self.start + self.length
 
     def line_mask(self, text: str) -> int:
-        if not self.length or self.start >= len(text):
+        if self.start >= len(text):
             return 0
         first = utils.calc_line_and_column(text, self.start)[0]
-        last = min(self.end, len(text)) - 1
+        last = max(min(self.end, len(text)) - 1, first)
         last = utils.calc_line_and_column(text, last)[0] if last > first else first
         mask = 0
         for i in range(first, last + 1):
@@ -357,6 +357,7 @@ class SpecifyMinimumCMakeVersion(Check):
                     end=utils.find_last_char_on_line(source_text, max(project.end(), min_required.end()) - 1) + 1,
                 ),
             )
+
 
 # minor issue here that this detects only the first target_include_directories, it may find more on subsequent runs
 # after fixing the first one

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.3
+
+- Fixed `# nocheck` not working in some rare circumstances
+
 ## v0.5.2
 
 - Fixed internal `Path.relative_to()` error when used inside a virtual environment

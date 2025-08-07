@@ -9,3 +9,5 @@ project(
     ${PROJECT-NAME}
     VERSION 1
 )
+
+project(VERSION 1)
