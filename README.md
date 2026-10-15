@@ -4,7 +4,7 @@ A simple linter for CMake.
 
 ## Installation
 
-`check-cmake` requires Python 3.8 or higher.
+`check-cmake` requires Python 3.9 or higher.
 
 ```
 pip3 install check-cmake
@@ -30,16 +30,17 @@ options:
                         recurse into subfolders (default: True)
   --limit LIMIT         maximum errors to emit (default: 0)
 
-v0.3.0 - github.com/marzer/check-cmake
+v0.5.3 - github.com/marzer/check-cmake
 ```
 
 ## Exit codes
 
-| Value | Meaning                |
-| :---- | :--------------------- |
-| 0     | No issues were found   |
-| 1     | Issues were found      |
-| -1    | A fatal error occurred |
+| Value | Meaning                                |
+| :---- | :------------------------------------- |
+| 0     | No issues were found                   |
+| 1     | Issues were found                      |
+| 2     | The arguments were invalid             |
+| 255   | A fatal error occurred (-1 on Windows) |
 
 ## Example output
 
@@ -76,7 +77,7 @@ set_target_properties(
 )
 ```
 
-For compatibility with other tools, any the following will also work:
+For compatibility with other tools, any of the following will also work:
 
 ```cmake
 # nolint
@@ -101,3 +102,7 @@ For compatibility with other tools, any the following will also work:
 # cmake-check: disable
 # cmake-lint: disable
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/marzer/check-cmake/blob/main/CONTRIBUTING.md).

@@ -34,5 +34,3 @@
 *.woff              binary
 *.woff2             binary
 *.xlsx              binary
-
-vendor/* linguist-vendored

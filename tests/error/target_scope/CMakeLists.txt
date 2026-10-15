@@ -1,0 +1,7 @@
+target_link_libraries(my_app some_lib)
+target_link_options(my_app -Wl,--as-needed)
+target_compile_options(my_app -Wall)
+target_compile_features(my_app cxx_std_17)
+target_compile_definitions(my_app DEBUG=1)
+target_include_directories(my_app "some/include/path")
+target_link_directories(my_app "some/lib/path")

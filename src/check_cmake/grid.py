@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-# This file is a part of marzer/check-cmake and is subject to the the terms of the MIT license.
+# This file is a part of marzer/check-cmake and is subject to the terms of the MIT license.
 # Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
 # See https://github.com/marzer/check-cmake/blob/main/LICENSE.txt for the full license text.
 # SPDX-License-Identifier: MIT
 
 from io import StringIO
-from typing import Tuple
+from typing import Optional
 
 import colorama
 
 
-class Cell(object):
+class Cell:
     def __init__(self, char):
         self.__val = str(char)
         self.colour = None
@@ -25,8 +25,8 @@ class Cell(object):
         return self.__val
 
 
-class Grid(object):
-    def __init__(self, text: str, indent='', line_number=None):
+class Grid:
+    def __init__(self, text: str, indent='', line_number: Optional[int] = None):
         self.__rows = []
         text = text.replace('\r\n', '\n')
         text = text.replace('\r', '\n')
@@ -41,11 +41,11 @@ class Grid(object):
         self.__indent = str(indent)
 
     @property
-    def line_number(self) -> int:
+    def line_number(self) -> Optional[int]:
         return self.__line_num
 
     @line_number.setter
-    def line_number(self, val: int):
+    def line_number(self, val: Optional[int]):
         self.__line_num = int(val) if val is not None else None
 
     def __bool__(self) -> bool:
@@ -72,7 +72,7 @@ class Grid(object):
                     if line_num >= 0:
                         buf.write(rf'{line_num:>{line_num_width}} | ')
                     else:
-                        buf.write(rf'{" "*line_num_width} | ')
+                        buf.write(rf'{" " * line_num_width} | ')
                     if current_colour is not None:
                         buf.write(rf'{current_colour}')
                     if current_style is not None:
@@ -122,6 +122,7 @@ class Grid(object):
 
     def __iter__(self):
         r = 1
+        c = 1
         for row in self.__rows:
             if r > 1:
                 yield (r - 1, c, '\n')
@@ -131,7 +132,7 @@ class Grid(object):
                 c += 1
             r += 1
 
-    def find_range(self, text) -> Tuple[int, int, int, int]:
+    def find_range(self, text) -> Optional[tuple[int, int, int, int]]:
         if text is None or not self.__rows:
             return None
         text = str(text)
@@ -146,13 +147,13 @@ class Grid(object):
             nonlocal text
             skipped = 0
             i = 0
-            start_r = None
-            start_c = None
+            start_r = 0
+            start_c = 0
             for r, c, val in self:
                 if skipped < start:
                     skipped += 1
                     continue
-                if start_r is None:
+                if i == 0:
                     start_r = r
                     start_c = c
                 if val != text[i]:
@@ -166,7 +167,7 @@ class Grid(object):
         if len(text) > self_len:
             return None
 
-        for i in range(0, self_len - len(text)):
+        for i in range(0, self_len - len(text) + 1):
             result = compare_from_offset(i)
             if result is not None:
                 return result

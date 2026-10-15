@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# This file is a part of marzer/check-cmake and is subject to the the terms of the MIT license.
+# This file is a part of marzer/check-cmake and is subject to the terms of the MIT license.
 # Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
 # See https://github.com/marzer/check-cmake/blob/main/LICENSE.txt for the full license text.
 # SPDX-License-Identifier: MIT
@@ -22,6 +22,3 @@ REPOSITORY = Path(SRC, r'..').resolve()
 
 TEMP = Path(tempfile.gettempdir(), r'check_cmake')
 """A global temp directory shared by all instances of check_cmake."""
-
-VERSION_TXT = PACKAGE / r'version.txt'
-"""The version file, version.txt."""

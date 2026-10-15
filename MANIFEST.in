@@ -1,0 +1,3 @@
+graft tests
+include src/__main__.py
+global-exclude *.py[cod]

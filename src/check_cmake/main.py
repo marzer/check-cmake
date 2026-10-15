@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-# This file is a part of marzer/check-cmake and is subject to the the terms of the MIT license.
+# This file is a part of marzer/check-cmake and is subject to the terms of the MIT license.
 # Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
 # See https://github.com/marzer/check-cmake/blob/main/LICENSE.txt for the full license text.
 # SPDX-License-Identifier: MIT
 
 import argparse
-import multiprocessing
-import re
 import shutil
 import signal
 import subprocess
 import sys
+import threading
 from io import StringIO
 from pathlib import Path
+from typing import Union
 
 import colorama
 
@@ -25,46 +25,33 @@ def error(text):
     print(rf"{bright(rf'error:', 'red')} {text}", file=sys.stderr)
 
 
-STOP = None
+STOP = threading.Event()
 
 
 def sigint_handler(signal, frame):
-    global STOP
-    if STOP is not None:
-        STOP.set()
+    STOP.set()
 
 
-def make_boolean_optional_arg(args: argparse.ArgumentParser, name: str, default, help='', **kwargs):
+def make_boolean_optional_arg(parser: argparse.ArgumentParser, name: str, default, help='', **kwargs):
     name = name.strip().lstrip('-')
-    if sys.version_info >= (3, 9):
-        args.add_argument(rf'--{name}', default=default, help=help, action=argparse.BooleanOptionalAction, **kwargs)
-    else:
-        dest = name.replace(r'-', r'_')
-        args.add_argument(rf'--{name}', action=r'store_true', help=help, dest=dest, default=default, **kwargs)
-        args.add_argument(
-            rf'--no-{name}',
-            action=r'store_false',
-            help=(help if help == argparse.SUPPRESS else None),
-            dest=dest,
-            default=default,
-            **kwargs,
-        )
+    action = parser.add_argument(rf'--{name}', default=default, action=argparse.BooleanOptionalAction, **kwargs)
+    action.help = help
 
 
-def main_impl():
-    args = argparse.ArgumentParser(
+def main_impl() -> Union[int, str, None]:
+    parser = argparse.ArgumentParser(
         description=r'CMake checker for C and C++ projects.',
         epilog=rf'v{VERSION_STRING} - github.com/marzer/check-cmake',
     )
-    args.add_argument(r'-v', r'--verbose', action=r'store_true', help=r"enable verbose output")
-    args.add_argument(
+    parser.add_argument(r'-v', r'--verbose', action=r'store_true', help=r"enable verbose output")
+    parser.add_argument(
         r"root", type=Path, nargs=r'?', default=Path('.'), help="path to the project root (default: %(default)s)"
     )
-    args.add_argument(r'--version', action=r'store_true', help=r"print the version and exit", dest=r'print_version')
-    make_boolean_optional_arg(args, r"recurse", default=True, help=rf"recurse into subfolders (default: %(default)s)")
-    args.add_argument(r"--limit", type=int, default=0, help="maximum errors to emit (default: %(default)s)")
-    args.add_argument(r'--where', action=r'store_true', help=argparse.SUPPRESS)
-    args = args.parse_args()
+    parser.add_argument(r'--version', action=r'store_true', help=r"print the version and exit", dest=r'print_version')
+    make_boolean_optional_arg(parser, r"recurse", default=True, help=rf"recurse into subfolders (default: %(default)s)")
+    parser.add_argument(r"--limit", type=int, default=0, help="maximum errors to emit (default: %(default)s)")
+    parser.add_argument(r'--where', action=r'store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
 
     if args.print_version:
         print(VERSION_STRING)
@@ -96,29 +83,27 @@ def main_impl():
     issue_count = 0
     file_count = 0
     prev_print_was_issue = False
-    global STOP
-    STOP = multiprocessing.Event()
 
     def print_ex(*args):
         nonlocal prev_print_was_issue
         prev_print_was_issue = False
         print(*args)
 
+    def limit_reached() -> bool:
+        return 0 < args.limit <= issue_count
+
     def check_directory(dir: Path):
-        global STOP
-        nonlocal args
-        nonlocal root_is_git_repo
         nonlocal issue_count
         nonlocal file_count
         nonlocal prev_print_was_issue
-        for item in dir.iterdir():
-            if STOP.is_set():
-                break
+        for item in sorted(dir.iterdir()):
+            if STOP.is_set() or limit_reached():
+                return
             item = item.resolve()
 
             try:
                 item_relative = item.relative_to(root_absolute)  # breaks venv usage
-            except:
+            except ValueError:
                 item_relative = item
 
             # check permissions
@@ -199,48 +184,18 @@ def main_impl():
                         print_ex(rf'[--] {item_relative} skipped (.gitignore)')
                     continue
 
-            # read all text
             file_count += 1
-            text = utils.read_all_text_from_file(item).replace('\r\n', '\n').replace('\r', '\n')
-
-            # check for 'ignore this line' pragrams
-            ignored_lines = 0
-            lines = text.split('\n')
-            for i, line in zip(range(len(lines)), lines):
-                if re.fullmatch(
-                    r'^[^#]*?#\s*(?:(?:cmake[ _-]+(?:lint|check)|(?:lint|check)[ _-]+cmake)[:\s]+(?:disable|ignore)|no(?:lint|check))\s*$',
-                    line,
-                    flags=re.I,
-                ):
-                    ignored_lines |= 1 << (i + 1)
-
-            # check files
-            text = utils.strip_cmake_comments(text)
-            issues_in_file = []
-            issues_in_file: list[checks.Issue]
-            for check in checks.CHECKS:
-                issues = check(item, text)
-                if issues is None:
-                    continue
-                issues = list(utils.coerce_collection(issues))
-                if not issues:
-                    continue
-                if ignored_lines:
-                    issues = [i for i in issues if (i.span.line_mask(text) & ignored_lines) == 0]
-                issues_in_file += issues
-
-            # sort issues by start location and print
-            issues_in_file.sort(key=lambda i: i.span.start)
-            for issue in issues_in_file:
+            issues = checks.check_text(item, utils.read_all_text_from_file(item))
+            for issue in issues:
                 if not prev_print_was_issue:
                     print('')
                 print(f"{bright(rf'error:', 'red')} {issue}\n")
                 prev_print_was_issue = True
                 issue_count += 1
-                if args.limit > 0 and issue_count >= args.limit > 0:
+                if limit_reached():
                     print_ex(f"reached error limit, stopping.")
                     return
-            if not issues_in_file and args.verbose:
+            if not issues and args.verbose:
                 print_ex(rf'[OK] {item_relative}')
 
     check_directory(args.root)

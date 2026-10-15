@@ -1,0 +1,7 @@
+target_link_libraries(my_app PRIVATE some_lib)
+target_link_options(my_app PUBLIC -Wl,--as-needed)
+target_compile_options(my_app PRIVATE -Wall)
+target_compile_features(my_app PUBLIC cxx_std_17)
+target_compile_definitions(my_app INTERFACE DEBUG=1)
+target_include_directories(my_app PUBLIC "some/include/path")
+target_link_directories(my_app PRIVATE "some/lib/path")

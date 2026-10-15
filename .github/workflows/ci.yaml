@@ -1,0 +1,173 @@
+name: ci
+
+on:
+    push:
+        paths:
+            - "**.py"
+            - "**.cmake"
+            - "**/CMakeLists.txt"
+            - "tests/**"
+            - "**/workflows/**.yaml"
+            - ".pre-commit-config.yaml"
+            - "pyproject.toml"
+            - "VERSION"
+            - "**.md"
+            - "**.yml"
+            - "**.json"
+            - ".editorconfig"
+            - ".gitattributes"
+            - ".gitignore"
+            - "LICENSE.txt"
+            - "MANIFEST.in"
+        branches:
+            - "**"
+        tags-ignore:
+            - "**"
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    lint:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-python@v6
+              with:
+                  python-version: "3.13"
+            - name: Install check-cmake
+              run: |
+                  python -m pip install --upgrade pip
+                  python -m pip install '.[dev]'
+            - name: pre-commit
+              run: pre-commit run --all-files --show-diff-on-failure
+
+    typecheck:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-python@v6
+              with:
+                  python-version: "3.13"
+            - name: Install check-cmake
+              run: |
+                  python -m pip install --upgrade pip
+                  python -m pip install '.[dev]'
+            - name: pyright
+              run: python -m pyright
+
+    test:
+        strategy:
+            fail-fast: false
+            matrix:
+                python:
+                    - "3.9"
+                    - "3.10"
+                    - "3.11"
+                    - "3.12"
+                    - "3.13"
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-python@v6
+              with:
+                  python-version: "${{ matrix.python }}"
+            - name: Install check-cmake
+              run: |
+                  python -m pip install --upgrade pip
+                  python -m pip install '.[test]'
+            - name: Print tool versions
+              run: git --version
+            - name: Run tests
+              run: python -m pytest tests -ra
+
+    actionlint:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - name: Download actionlint
+              id: actionlint
+              run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+            - name: Lint workflows
+              run: ${{ steps.actionlint.outputs.executable }} -color
+
+    package:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-python@v6
+              with:
+                  python-version: "3.13"
+            - name: Build sdist + wheel
+              run: |
+                  python -m pip install --upgrade pip build
+                  python -m build
+            - name: Install wheel into a clean venv and verify version
+              run: |
+                  python -m venv /tmp/venv
+                  /tmp/venv/bin/pip install dist/*.whl
+                  expected="$(tr -d '[:space:]' < VERSION)"
+                  actual="$(cd /tmp && /tmp/venv/bin/check-cmake --version)"
+                  echo "expected='$expected' actual='$actual'"
+                  test "$actual" = "$expected"
+
+    release:
+        needs: [lint, typecheck, test, actionlint, package]
+        if: github.ref == 'refs/heads/main'
+        runs-on: ubuntu-slim
+
+        defaults:
+            run:
+                shell: bash
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Create release from VERSION
+              env:
+                  GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "::error::the RELEASE_TOKEN secret is not set"
+                    exit 1
+                  fi
+
+                  shopt -s extglob
+                  version=$(<VERSION)
+                  version="${version##+([[:space:]])}"
+                  version="${version%%+([[:space:]])}"
+                  echo "VERSION: $version"
+
+                  if [ -z "$version" ]; then
+                    echo "empty VERSION; nothing to do."
+                    exit 0
+                  fi
+                  if [ "$version" = "0" ] || [ "$version" = "0.0" ] || [ "$version" = "0.0.0" ]; then
+                    echo "VERSION was set to 0.0.0; nothing to do."
+                    exit 0
+                  fi
+
+                  tag="v$version"
+                  if gh release view "$tag" --repo "${{ github.repository }}" ; then
+                    echo "release with tag $tag already exists; nothing to do."
+                    exit 0
+                  fi
+
+                  notes="This release was triggered automatically by a merge to \`${{ github.ref_name }}\`."
+                  notes+='<br/><br/>'
+                  if [ -f "CHANGELOG.md" ]; then
+                    notes+='See [CHANGELOG.md]('
+                    notes+="https://github.com/${{ github.repository }}/blob/$tag/CHANGELOG.md"
+                    notes+=') for a human-friendly change log. :tada:'
+                    notes+='<br/><br/>'
+                  fi
+
+                  gh release create "$tag" \
+                    --repo "${{ github.repository }}" \
+                    --target "${{ github.sha }}" \
+                    --title "$tag" \
+                    --generate-notes \
+                    --notes "$notes"

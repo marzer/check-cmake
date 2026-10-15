@@ -1,6 +1,7 @@
 {
 	"prettier.useTabs": true,
 	"prettier.tabWidth": 4,
+	"prettier.printWidth": 120,
 	"editor.rulers": [120],
 	"editor.formatOnSave": true,
 	"editor.formatOnPaste": false,
@@ -13,6 +14,9 @@
 		"**/*.egg-info": true
 	},
 	"[python]": {
-		"editor.defaultFormatter": "ms-python.black-formatter"
+		"editor.defaultFormatter": "charliermarsh.ruff",
+		"editor.codeActionsOnSave": {
+			"source.organizeImports.ruff": "explicit"
+		}
 	}
 }

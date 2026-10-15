@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-# This file is a part of marzer/check-cmake and is subject to the the terms of the MIT license.
+# This file is a part of marzer/check-cmake and is subject to the terms of the MIT license.
 # Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
 # See https://github.com/marzer/check-cmake/blob/main/LICENSE.txt for the full license text.
 # SPDX-License-Identifier: MIT
 
 import re
+from collections.abc import Sequence
 from io import StringIO
 from pathlib import Path
-from typing import Collection, List, Tuple, Union
+from typing import Optional, Union
 
 import colorama
 
@@ -19,7 +20,7 @@ INDENT = '  '
 BS = '\\'
 
 
-class Link(object):
+class Link:
     def __init__(self, uri, description=None):
         self.uri = str(uri)
         self.description = description
@@ -47,7 +48,7 @@ class Link(object):
         return self.uri
 
 
-class Links(object):
+class Links:
     # SHOUTY
     CMAKE_C_KNOWN_FEATURES = Link('https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_C_KNOWN_FEATURES.html')
     CMAKE_CXX_KNOWN_FEATURES = Link('https://cmake.org/cmake/help/latest/prop_gbl/CMAKE_CXX_KNOWN_FEATURES.html')
@@ -71,8 +72,8 @@ class Links(object):
     add_library = Link('https://cmake.org/cmake/help/latest/command/add_library.html')
 
 
-class Span(object):
-    def __init__(self, start: int, length: int = 1, end: int = None):
+class Span:
+    def __init__(self, start: int, length: int = 1, end: Optional[int] = None):
         self.start = int(start)
         assert self.start >= 0
         if end is not None:
@@ -95,17 +96,22 @@ class Span(object):
         if self.start >= len(text):
             return 0
         first = utils.calc_line_and_column(text, self.start)[0]
-        last = max(min(self.end, len(text)) - 1, first)
-        last = utils.calc_line_and_column(text, last)[0] if last > first else first
+        last = utils.calc_line_and_column(text, max(min(self.end, len(text)) - 1, self.start))[0]
         mask = 0
         for i in range(first, last + 1):
             mask |= 1 << i
         return mask
 
 
-class Issue(object):
+class Issue:
     def __init__(
-        self, generator, source_path: Path, source_text: str, span: Span, description: str = None, context: Span = None
+        self,
+        generator: 'Check',
+        source_path: Path,
+        source_text: str,
+        span: Span,
+        description: Optional[str] = None,
+        context: Optional[Span] = None,
     ):
         assert generator is not None
         self.generator = generator
@@ -127,7 +133,7 @@ class Issue(object):
         self.line_and_column = utils.calc_line_and_column(source_text, span.start)
 
         self.grid = Grid(source_text[self.context.start : self.context.end], indent=INDENT * 2)
-        self.grid.line_number = utils.calc_line_and_column(source_text, context.start)[0]
+        self.grid.line_number = utils.calc_line_and_column(source_text, self.context.start)[0]
         grid_highlight_range = self.grid.find_range(source_text[self.span.start : self.span.end])
         if grid_highlight_range is not None:
             self.grid.style_range(
@@ -163,7 +169,7 @@ class Issue(object):
                 buf.write(f'\n{INDENT}{colorama.Style.BRIGHT}Context:{colorama.Style.RESET_ALL}\n{self.grid}')
             if self.generator.replace_with:
                 buf.write(
-                    f'\n{INDENT}{colorama.Style.BRIGHT}Replace with:{colorama.Style.RESET_ALL}\n{INDENT*2}{self.generator.replace_with}'
+                    f'\n{INDENT}{colorama.Style.BRIGHT}Replace with:{colorama.Style.RESET_ALL}\n{INDENT * 2}{self.generator.replace_with}'
                 )
             if self.generator.example:
                 buf.write(
@@ -172,18 +178,18 @@ class Issue(object):
             if self.generator.more_info:
                 buf.write(f'\n{INDENT}{colorama.Style.BRIGHT}More information:{colorama.Style.RESET_ALL}')
                 for info in self.generator.more_info:
-                    buf.write(f'\n{INDENT*2}{info}')
+                    buf.write(f'\n{INDENT * 2}{info}')
             return buf.getvalue().lstrip()
 
 
-class Check(object):
+class Check:
     def __init__(
         self,
         name: str,
         description: str,
-        replace_with: Union[str, Link] = None,
-        example: Union[str, Grid] = None,
-        more_info: Union[str, Link, Collection[Union[str, Link]]] = None,
+        replace_with: Union[str, Link, None] = None,
+        example: Union[str, Grid, None] = None,
+        more_info: Union[str, Link, Sequence[Union[str, Link]], None] = None,
     ):
         assert name is not None
         self.__name = str(name).strip()
@@ -197,21 +203,15 @@ class Check(object):
         if self.__replace_with is not None and not isinstance(self.__replace_with, Link):
             self.__replace_with = str(self.__replace_with).strip()
 
+        if example is not None and not isinstance(example, Grid):
+            example = str(example).strip()
+            example = Grid(example, line_number=-999999, indent=INDENT * 2) if example else None
         self.__example = example
-        if self.__example is not None and not isinstance(self.__example, Grid):
-            self.__example = str(self.__example).strip()
-            self.__example = Grid(self.__example, line_number=-999999, indent=INDENT * 2) if self.__example else None
 
-        self.__more_info = None
-        if more_info is not None:
-            self.__more_info = [i for i in list(utils.coerce_collection(more_info)) if i]
-            for i in range(len(self.__more_info)):
-                if not isinstance(self.__more_info[i], Link):
-                    self.__more_info[i] = Link(str(self.__more_info[i]))
-            self.__more_info = tuple(self.__more_info) if self.__more_info else None
+        self.__more_info = tuple(i if isinstance(i, Link) else Link(str(i)) for i in utils.as_tuple(more_info) if i)
 
-    def __call__(self, source_path: Path, source_text: str) -> Union[Issue, List[Issue]]:
-        raise Exception('not implemented')
+    def __call__(self, source_path: Path, source_text: str) -> Union[Issue, list[Issue], None]:
+        raise NotImplementedError
 
     @property
     def name(self) -> str:
@@ -222,15 +222,15 @@ class Check(object):
         return self.__description
 
     @property
-    def example(self) -> Grid:
+    def example(self) -> Optional[Grid]:
         return self.__example
 
     @property
-    def replace_with(self) -> Union[str, Link]:
+    def replace_with(self) -> Union[str, Link, None]:
         return self.__replace_with
 
     @property
-    def more_info(self) -> Tuple[Link]:
+    def more_info(self) -> tuple[Link, ...]:
         return self.__more_info
 
 
@@ -239,20 +239,20 @@ class RegexCheck(Check):
         self,
         name: str,
         description: str,
-        pattern: Union[str, Collection[str]],
-        replace_with: Union[str, Link] = None,
-        example: str = None,
-        more_info: Union[str, Link, Collection[Union[str, Link]]] = None,
+        pattern: Union[str, Sequence[str]],
+        replace_with: Union[str, Link, None] = None,
+        example: Optional[str] = None,
+        more_info: Union[str, Link, Sequence[Union[str, Link]], None] = None,
         flags: int = 0,
         inner_group_index: int = 1,
-        inner_group_must_match: str = None,
+        inner_group_must_match: Optional[str] = None,
     ):
         super().__init__(name, description, replace_with=replace_with, example=example, more_info=more_info)
 
         self._description_has_group_placeholders = re.search(r'\\[0-9]', self.description)
 
         assert pattern is not None
-        pattern = utils.coerce_collection(pattern)
+        pattern = utils.as_tuple(pattern)
         assert pattern
         self._patterns = []
         for p in pattern:
@@ -268,7 +268,7 @@ class RegexCheck(Check):
         if inner_group_must_match is not None and bool(inner_group_must_match):
             self._inner_group_must_match = re.compile(str(inner_group_must_match), flags=int(flags) | re.DOTALL)
 
-    def __call__(self, source_path: Path, source_text: str) -> List[Issue]:
+    def __call__(self, source_path: Path, source_text: str) -> list[Issue]:
         results = []
         for pattern in self._patterns:
             for m in pattern.finditer(source_text):
@@ -328,7 +328,7 @@ class SpecifyMinimumCMakeVersion(Check):
         self.__find_project = re.compile(rf'\b(project)\s*\(({NCB})\)', flags=re.DOTALL)
         self.__find_min_required = re.compile(rf'\b(cmake_minimum_required)\s*\(({NCB})\)', flags=re.DOTALL)
 
-    def __call__(self, source_path: Path, source_text: str) -> Issue:
+    def __call__(self, source_path: Path, source_text: str) -> Optional[Issue]:
         if source_path.name.lower() != 'cmakelists.txt':
             return None
         project = self.__find_project.search(source_text)
@@ -376,7 +376,7 @@ class TargetIncludeDirectoriesSYSTEM(Check):
             rf'^\s*(?:[a-zA-Z0-9_-]+|\$\{{[a-zA-Z0-9_-]+\}}|"{NSTR}")\s+SYSTEM\s+.*?$', flags=re.DOTALL
         )
 
-    def __call__(self, source_path: Path, source_text: str) -> Issue:
+    def __call__(self, source_path: Path, source_text: str) -> Optional[Issue]:
         tid = self.__tid_with_system.search(source_text)
         if not tid:
             return None
@@ -406,7 +406,7 @@ CHECKS = (
     ),
     RegexCheck(
         r'specify_scope_on_target_functions',
-        rf'{emphasis(BS+r"1()")} should specify at least one dependency scope '
+        rf'{emphasis(BS + r"1()")} should specify at least one dependency scope '
         rf'({emphasis("PRIVATE")}, {emphasis("INTERFACE")} or {emphasis("PUBLIC")}) ',
         rf'\b(target_(?:link_(?:options|libraries)|compile_(?:options|features|definitions)|(?:include|link)_directories))\s*\(({NCB})\)',
         inner_group_index=2,
@@ -476,7 +476,7 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
         rf'support for threading should be provided by linking with {emphasis("Threads::Threads")} from the {emphasis("Threads")} package',
         rf'\btarget_link_libraries\s*\({NCB}\b(pthread)\b{NCB}\)',
         replace_with='Threads::Threads',
-        example=r'find_package(Threads REQUIRED)\ntarget_link_libraries(my_lib PUBLIC Threads::Threads)',
+        example='find_package(Threads REQUIRED)\ntarget_link_libraries(my_lib PUBLIC Threads::Threads)',
         more_info=(r'https://cmake.org/cmake/help/latest/module/FindThreads.html', Links.find_package),
     ),
     RegexCheck(
@@ -484,7 +484,7 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
         rf"{emphasis('ExternalProject_Add()')} variable definitions specified via {emphasis('CMAKE_ARGS')} must not"
         + rf" have a space after {emphasis('-D')} (use quotes around the entire argument if the RHS might have whitespace)",
         rf'\bExternalProject_Add\s*\({NCB}\s+CMAKE_ARGS\s+{NCB}(-D\s+[a-zA-Z0-9_]+=){NCB}\)',
-        example='\nExternalProject_Add(\n\tsome_lib\n\tSOURCE_DIR\n\t\t"some_lib/source"\n\tCMAKE_ARGS\n\t\t"-DCMAKE_CXX_COMPILER=${{CMAKE_CXX_COMPILER}}"\n)',
+        example='\nExternalProject_Add(\n\tsome_lib\n\tSOURCE_DIR\n\t\t"some_lib/source"\n\tCMAKE_ARGS\n\t\t"-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"\n)',
         more_info=Links.ExternalProject,
     ),
     RegexCheck(
@@ -498,4 +498,23 @@ set_target_properties(my_lib PROPERTIES INSTALL_RPATH "${my_current_rpaths}")
     ),
 )
 
-__all__ = ['Issue', 'CHECKS']
+IGNORE_PRAGMA = re.compile(
+    r'^[^#]*?#\s*(?:(?:cmake[ _-]+(?:lint|check)|(?:lint|check)[ _-]+cmake)[:\s]+(?:disable|ignore)|no(?:lint|check))\s*$',
+    flags=re.I,
+)
+
+
+def check_text(path: Path, text: str) -> list[Issue]:
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    ignored_lines = 0
+    for line_number, line in enumerate(text.split('\n'), start=1):
+        if IGNORE_PRAGMA.fullmatch(line):
+            ignored_lines |= 1 << line_number
+    text = utils.strip_cmake_comments(text)
+    issues = [issue for check in CHECKS for issue in utils.as_tuple(check(path, text))]
+    if ignored_lines:
+        issues = [issue for issue in issues if not issue.span.line_mask(text) & ignored_lines]
+    return sorted(issues, key=lambda issue: issue.span.start)
+
+
+__all__ = ['Issue', 'CHECKS', 'check_text']

@@ -1,16 +1,27 @@
 #!/usr/bin/env python3
-# This file is a part of marzer/check-cmake and is subject to the the terms of the MIT license.
+# This file is a part of marzer/check-cmake and is subject to the terms of the MIT license.
 # Copyright (c) Mark Gillard <mark.gillard@outlook.com.au>
 # See https://github.com/marzer/check-cmake/blob/main/LICENSE.txt for the full license text.
 # SPDX-License-Identifier: MIT
 
+from collections.abc import Sequence
 from io import StringIO
-from typing import Tuple
+from typing import TypeVar, Union, cast
 
 from misk import *
 
+T = TypeVar('T')
 
-def calc_line_and_column(text: str, pos: int) -> Tuple[int, int]:
+
+def as_tuple(val: Union[T, Sequence[T], None]) -> tuple[T, ...]:
+    if val is None:
+        return ()
+    if isinstance(val, (list, tuple)):
+        return tuple(val)
+    return (cast(T, val),)
+
+
+def calc_line_and_column(text: str, pos: int) -> tuple[int, int]:
     assert 0 <= pos <= len(text)
     line = 0
     col = 0
@@ -64,4 +75,10 @@ def strip_cmake_comments(text: str) -> str:
         return buf.getvalue()
 
 
-__all__ = ['calc_line_and_column', 'find_first_char_on_line', 'find_last_char_on_line', 'strip_cmake_comments']
+__all__ = [
+    'as_tuple',
+    'calc_line_and_column',
+    'find_first_char_on_line',
+    'find_last_char_on_line',
+    'strip_cmake_comments',
+]
